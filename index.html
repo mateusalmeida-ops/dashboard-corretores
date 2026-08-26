@@ -1,0 +1,916 @@
+<title>Dashboard de Corretores</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --border: #e5e7eb;
+    --text: #1f2430;
+    --text-muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-light: #eef2ff;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --sidebar-w: 220px;
+    --danger: #dc2626;
+    --success: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  /* ===== Sidebar ===== */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: #191c27;
+    color: #d7d9e0;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    z-index: 20;
+  }
+  .sidebar .brand {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    padding: 0 20px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 10px;
+  }
+  .sidebar nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    color: #b6b9c6;
+    text-decoration: none;
+    font-size: 14px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+  }
+  .sidebar nav a:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  .sidebar nav a.active {
+    background: rgba(79,70,229,0.15);
+    color: #fff;
+    border-left: 3px solid var(--accent);
+  }
+  .sidebar .icon { font-size: 16px; width: 18px; text-align: center; }
+
+  /* ===== Main layout ===== */
+  .main {
+    margin-left: var(--sidebar-w);
+    padding: 24px 28px 60px 28px;
+    min-height: 100vh;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .topbar h1 {
+    font-size: 22px;
+    margin: 0 0 4px 0;
+  }
+  .topbar .subtitle {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Period selector */
+  .period-box {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .period-buttons { display: flex; gap: 6px; }
+  .period-buttons button {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .period-buttons button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .custom-dates { display: none; align-items: center; gap: 8px; }
+  .custom-dates.visible { display: flex; }
+  .custom-dates input[type=date] {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  .refresh-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .refresh-btn:hover { background: var(--accent-light); }
+
+  /* Cards / grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+  .grid.full { grid-template-columns: 1fr; }
+  .grid.thirds { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 980px) {
+    .grid, .grid.thirds { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .card .card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-wrap.tall { height: 320px; }
+
+  .kpi-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .kpi {
+    flex: 1;
+    min-width: 140px;
+    background: var(--accent-light);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .kpi .kpi-value { font-size: 26px; font-weight: 700; color: var(--accent); }
+  .kpi .kpi-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .region-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .region-filters button {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .region-filters button.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* Funil */
+  .funnel-stage {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  .funnel-bar-outer {
+    flex: 1;
+    background: #f0f1f5;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 34px;
+    position: relative;
+  }
+  .funnel-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #7c74f2);
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: width .4s ease;
+  }
+  .funnel-label {
+    width: 130px;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .funnel-pct {
+    width: 90px;
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .etapa-tempo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 8px;
+  }
+  @media (max-width: 900px) { .etapa-tempo-grid { grid-template-columns: repeat(2,1fr); } }
+  .etapa-tempo-item {
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .etapa-tempo-item .val { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .etapa-tempo-item .lbl { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  #status-msg {
+    display: none;
+    background: #fff4f4;
+    border: 1px solid #f2b8b8;
+    color: var(--danger);
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  #status-msg.visible { display: block; }
+  #loading-msg {
+    display: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  #loading-msg.visible { display: block; }
+</style>
+
+<div class="sidebar">
+  <div class="brand">📊 Corretores</div>
+  <nav>
+    <a href="#" class="nav-link active" data-view="dashboard"><span class="icon">🏠</span> Dashboard</a>
+    <a href="#" class="nav-link" data-view="funil"><span class="icon">🔻</span> Funil de Vendas</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h1 id="page-title">Dashboard</h1>
+      <div class="subtitle">Gestão de corretores parceiros</div>
+    </div>
+
+    <div class="period-box">
+      <div class="period-buttons">
+        <button data-period="semana">Esta semana</button>
+        <button data-period="mes" class="active">Este mês</button>
+        <button data-period="personalizado">Personalizado</button>
+      </div>
+      <div class="custom-dates" id="custom-dates">
+        <input type="date" id="data-inicio">
+        <span>até</span>
+        <input type="date" id="data-fim">
+      </div>
+      <button class="refresh-btn" id="btn-refresh">↻ Atualizar dados</button>
+    </div>
+  </div>
+
+  <div id="loading-msg">Carregando dados da planilha...</div>
+  <div id="status-msg">Não foi possível carregar os dados.</div>
+
+  <!-- ================= DASHBOARD VIEW ================= -->
+  <div class="view active" id="view-dashboard">
+
+    <div class="grid">
+      <div class="card">
+        <h3>Corretores cadastrados por dia</h3>
+        <div class="card-desc">Quantidade de novos corretores por data de cadastro, no período selecionado.</div>
+        <div class="chart-wrap"><canvas id="chart-por-dia"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Visão semanal</h3>
+        <div class="card-desc">Comparativo de cadastros agregados por semana.</div>
+        <div class="chart-wrap"><canvas id="chart-semanal"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Volume por canal de entrada</h3>
+        <div class="card-desc">Distribuição dos corretores por canal, no período selecionado.</div>
+        <div class="chart-wrap"><canvas id="chart-canal"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Cadastrados no CV</h3>
+        <div class="card-desc">Total de corretores no período x quantidade já cadastrada no sistema CV.</div>
+        <div class="kpi-row" style="margin-bottom:14px;">
+          <div class="kpi"><div class="kpi-value" id="kpi-total">0</div><div class="kpi-label">Total no período</div></div>
+          <div class="kpi"><div class="kpi-value" id="kpi-cv">0</div><div class="kpi-label">Cadastrados no CV</div></div>
+          <div class="kpi"><div class="kpi-value" id="kpi-cv-pct">0%</div><div class="kpi-label">Conversão CV</div></div>
+        </div>
+        <div class="chart-wrap" style="height:160px;"><canvas id="chart-cv"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid full">
+      <div class="card">
+        <h3 id="titulo-regiao">Volume por região</h3>
+        <div class="card-desc" id="desc-regiao">Corretores agrupados pela região do estado informado no cadastro. Clique em uma região para detalhar por estado.</div>
+        <div class="chart-wrap tall"><canvas id="chart-regiao"></canvas></div>
+        <div class="region-filters" id="region-filters"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FUNIL VIEW ================= -->
+  <div class="view" id="view-funil">
+    <div class="grid full">
+      <div class="card">
+        <h3>Funil de vendas</h3>
+        <div class="card-desc">Situação mais recente de cada corretor dentro do período selecionado (sem contagem duplicada).</div>
+        <div id="funnel-container"></div>
+      </div>
+    </div>
+
+    <div class="grid full">
+      <div class="card">
+        <h3>Tempo médio por etapa</h3>
+        <div class="card-desc">Média de dias entre a entrada em uma etapa e a entrada na etapa seguinte (ou até hoje, se o corretor ainda não avançou).</div>
+        <div class="etapa-tempo-grid" id="tempo-etapas"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIGURAÇÃO — insira aqui a URL/ID da planilha publicada
+   ========================================================= */
+const CONFIG = {
+  // Aba "Cadastro" publicada como CSV (gid=0)
+  URL_CADASTRO: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=0&single=true&output=csv",
+  // Aba "Log_Funil" publicada como CSV (gid=1874964851)
+  URL_LOG_FUNIL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1874964851&single=true&output=csv"
+};
+
+/* =========================================================
+   MAPEAMENTO ESTADO -> REGIÃO (27 UFs)
+   ========================================================= */
+const UF_REGIAO = {
+  AC: "Norte", AP: "Norte", AM: "Norte", PA: "Norte", RO: "Norte", RR: "Norte", TO: "Norte",
+  AL: "Nordeste", BA: "Nordeste", CE: "Nordeste", MA: "Nordeste", PB: "Nordeste",
+  PE: "Nordeste", PI: "Nordeste", RN: "Nordeste", SE: "Nordeste",
+  DF: "Centro-Oeste", GO: "Centro-Oeste", MT: "Centro-Oeste", MS: "Centro-Oeste",
+  ES: "Sudeste", MG: "Sudeste", RJ: "Sudeste", SP: "Sudeste",
+  PR: "Sul", RS: "Sul", SC: "Sul"
+};
+
+// Aceita nome completo do estado além da sigla
+const NOME_PARA_UF = {
+  "ACRE":"AC","AMAPA":"AP","AMAPÁ":"AP","AMAZONAS":"AM","PARA":"PA","PARÁ":"PA","RONDONIA":"RO","RONDÔNIA":"RO",
+  "RORAIMA":"RR","TOCANTINS":"TO","ALAGOAS":"AL","BAHIA":"BA","CEARA":"CE","CEARÁ":"CE","MARANHAO":"MA","MARANHÃO":"MA",
+  "PARAIBA":"PB","PARAÍBA":"PB","PERNAMBUCO":"PE","PIAUI":"PI","PIAUÍ":"PI","RIO GRANDE DO NORTE":"RN","SERGIPE":"SE",
+  "DISTRITO FEDERAL":"DF","GOIAS":"GO","GOIÁS":"GO","MATO GROSSO":"MT","MATO GROSSO DO SUL":"MS",
+  "ESPIRITO SANTO":"ES","ESPÍRITO SANTO":"ES","MINAS GERAIS":"MG","RIO DE JANEIRO":"RJ","SAO PAULO":"SP","SÃO PAULO":"SP",
+  "PARANA":"PR","PARANÁ":"PR","RIO GRANDE DO SUL":"RS","SANTA CATARINA":"SC"
+};
+
+const ORDEM_REGIOES = ["Norte","Nordeste","Centro-Oeste","Sudeste","Sul"];
+const ORDEM_ETAPAS = ["Prospectado","Cadastrado","Manutenção","Ativo","Descartado"];
+const ETAPA_LABEL = {
+  "Prospectado":"Prospectados","Cadastrado":"Cadastrados","Manutenção":"Manutenção",
+  "Ativo":"Ativos","Descartado":"Descartados"
+};
+
+// Marcadores de "sem etapa anterior" usados na planilha (célula vazia, traço, etc.)
+const MARCADORES_VAZIO = ["", "-", "--", "—", "–", "n/a", "na"];
+
+function removerAcentos(str) {
+  return String(str).normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// Normaliza o texto de uma etapa vinda da planilha (maiúsculas/minúsculas,
+// acentos e espaços variam entre linhas) para um dos 5 nomes fixos do funil.
+const MAPA_ETAPAS = {
+  "PROSPECTADO": "Prospectado", "PROSPECTADOS": "Prospectado",
+  "CADASTRADO": "Cadastrado", "CADASTRADOS": "Cadastrado",
+  "MANUTENCAO": "Manutenção", "EM MANUTENCAO": "Manutenção",
+  "ATIVO": "Ativo", "ATIVOS": "Ativo",
+  "DESCARTADO": "Descartado", "DESCARTADOS": "Descartado"
+};
+function normalizarEtapa(str) {
+  if (!str) return "";
+  const bruto = String(str).trim();
+  if (MARCADORES_VAZIO.includes(bruto.toLowerCase())) return "";
+  const chave = removerAcentos(bruto).toUpperCase();
+  return MAPA_ETAPAS[chave] || bruto;
+}
+
+/* =========================================================
+   ESTADO GLOBAL
+   ========================================================= */
+const state = {
+  cadastro: [],
+  logFunil: [],
+  periodType: "mes",
+  customStart: null,
+  customEnd: null,
+  regionFilter: null, // null = visão agrupada; senão nome da região
+  charts: {}
+};
+
+/* =========================================================
+   UTILITÁRIOS DE DATA
+   ========================================================= */
+function parseDataBR(str) {
+  if (!str) return null;
+  const s = String(str).trim().split(" ")[0];
+  const partes = s.split("/");
+  if (partes.length !== 3) {
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+  const [dia, mes, ano] = partes.map(Number);
+  if (!dia || !mes || !ano) return null;
+  return new Date(ano, mes - 1, dia);
+}
+
+function normalizarUF(valor) {
+  if (!valor) return null;
+  const v = String(valor).trim().toUpperCase();
+  if (UF_REGIAO[v]) return v;
+  if (NOME_PARA_UF[v]) return NOME_PARA_UF[v];
+  return null;
+}
+
+function inicioDoDia(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function fimDoDia(d) { const x = new Date(d); x.setHours(23,59,59,999); return x; }
+function diffDias(a, b) { return (b - a) / (1000 * 60 * 60 * 24); }
+function formatarDataCurta(d) {
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+function inicioDaSemana(d) {
+  const x = new Date(d);
+  const dia = x.getDay(); // 0=domingo
+  const diff = dia === 0 ? -6 : 1 - dia;
+  x.setDate(x.getDate() + diff);
+  return inicioDoDia(x);
+}
+
+/* =========================================================
+   LEITURA DE DADOS (fetch + PapaParse)
+   ========================================================= */
+function buscarCSV(url) {
+  // O CSV publicado pelo Google Sheets é servido com cache de alguns minutos
+  // no lado do Google, independente do cache do navegador. Um parâmetro
+  // exclusivo por requisição evita que essa camada devolva uma versão antiga.
+  const separador = url.includes("?") ? "&" : "?";
+  const urlSemCache = url + separador + "_cb=" + Date.now();
+
+  return fetch(urlSemCache, { cache: "no-store" })
+    .then(resp => {
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      return resp.text();
+    })
+    .then(texto => {
+      const resultado = Papa.parse(texto, { header: true, skipEmptyLines: true });
+      return resultado.data;
+    });
+}
+
+async function carregarDados() {
+  mostrarCarregando(true);
+  mostrarErro(false);
+  try {
+    const [cadastroRaw, logRaw] = await Promise.all([
+      buscarCSV(CONFIG.URL_CADASTRO),
+      buscarCSV(CONFIG.URL_LOG_FUNIL)
+    ]);
+
+    state.cadastro = cadastroRaw
+      .filter(r => r.ID_Corretor)
+      .map(r => ({
+        id: String(r.ID_Corretor).trim(),
+        nome: r.Nome || "",
+        dataCadastro: parseDataBR(r.Data_Cadastro),
+        canal: (r.Canal_Entrada || "Outros").trim(),
+        uf: normalizarUF(r.Estado),
+        statusCV: (r.Status_CV || "").trim().toLowerCase() === "sim",
+        statusAtual: (r.Status_Atual || "").trim()
+      }))
+      .filter(r => r.dataCadastro);
+
+    state.logFunil = logRaw
+      .filter(r => r.ID_Corretor)
+      .map(r => ({
+        id: String(r.ID_Corretor).trim(),
+        nome: r.Nome || "",
+        data: parseDataBR(r.Data_Mudanca),
+        etapaAnterior: normalizarEtapa(r.Etapa_Anterior),
+        etapaNova: normalizarEtapa(r.Etapa_Nova)
+      }))
+      .filter(r => r.data && r.etapaNova)
+      .sort((a, b) => a.data - b.data);
+
+    mostrarCarregando(false);
+    renderizarTudo();
+  } catch (err) {
+    console.error(err);
+    mostrarCarregando(false);
+    mostrarErro(true);
+  }
+}
+
+function mostrarCarregando(v) {
+  document.getElementById("loading-msg").classList.toggle("visible", v);
+}
+function mostrarErro(v) {
+  document.getElementById("status-msg").classList.toggle("visible", v);
+}
+
+/* =========================================================
+   FILTRO POR PERÍODO
+   ========================================================= */
+function obterPeriodoAtual() {
+  const hoje = new Date();
+  if (state.periodType === "semana") {
+    return { inicio: inicioDaSemana(hoje), fim: fimDoDia(hoje) };
+  }
+  if (state.periodType === "mes") {
+    return { inicio: new Date(hoje.getFullYear(), hoje.getMonth(), 1), fim: fimDoDia(hoje) };
+  }
+  // personalizado
+  const ini = state.customStart ? inicioDoDia(state.customStart) : inicioDoDia(hoje);
+  const fim = state.customEnd ? fimDoDia(state.customEnd) : fimDoDia(hoje);
+  return { inicio: ini, fim: fim };
+}
+
+function filtrarPorPeriodo(registros, campoData) {
+  const { inicio, fim } = obterPeriodoAtual();
+  return registros.filter(r => r[campoData] >= inicio && r[campoData] <= fim);
+}
+
+/* =========================================================
+   DASHBOARD — cálculo de métricas
+   ========================================================= */
+function calcularMetricasDashboard() {
+  const cadastroFiltrado = filtrarPorPeriodo(state.cadastro, "dataCadastro");
+
+  // Por dia
+  const porDiaMap = new Map();
+  cadastroFiltrado.forEach(r => {
+    const chave = inicioDoDia(r.dataCadastro).getTime();
+    porDiaMap.set(chave, (porDiaMap.get(chave) || 0) + 1);
+  });
+  const diasOrdenados = [...porDiaMap.keys()].sort((a, b) => a - b);
+  const porDia = {
+    labels: diasOrdenados.map(t => formatarDataCurta(new Date(t))),
+    valores: diasOrdenados.map(t => porDiaMap.get(t))
+  };
+
+  // Semanal
+  const porSemanaMap = new Map();
+  cadastroFiltrado.forEach(r => {
+    const chave = inicioDaSemana(r.dataCadastro).getTime();
+    porSemanaMap.set(chave, (porSemanaMap.get(chave) || 0) + 1);
+  });
+  const semanasOrdenadas = [...porSemanaMap.keys()].sort((a, b) => a - b);
+  const porSemana = {
+    labels: semanasOrdenadas.map(t => "Sem. " + formatarDataCurta(new Date(t))),
+    valores: semanasOrdenadas.map(t => porSemanaMap.get(t))
+  };
+
+  // Canal
+  const porCanalMap = new Map();
+  cadastroFiltrado.forEach(r => {
+    porCanalMap.set(r.canal, (porCanalMap.get(r.canal) || 0) + 1);
+  });
+
+  // CV
+  const total = cadastroFiltrado.length;
+  const totalCV = cadastroFiltrado.filter(r => r.statusCV).length;
+  const pctCV = total > 0 ? Math.round((totalCV / total) * 100) : 0;
+
+  return { cadastroFiltrado, porDia, porSemana, porCanalMap, total, totalCV, pctCV };
+}
+
+function agruparPorRegiao(cadastroFiltrado) {
+  const porRegiao = new Map(ORDEM_REGIOES.map(r => [r, 0]));
+  cadastroFiltrado.forEach(r => {
+    if (r.uf && UF_REGIAO[r.uf]) {
+      const reg = UF_REGIAO[r.uf];
+      porRegiao.set(reg, (porRegiao.get(reg) || 0) + 1);
+    }
+  });
+  return porRegiao;
+}
+
+function drillDownRegiao(regiao, cadastroFiltrado) {
+  const porEstado = new Map();
+  cadastroFiltrado.forEach(r => {
+    if (r.uf && UF_REGIAO[r.uf] === regiao) {
+      porEstado.set(r.uf, (porEstado.get(r.uf) || 0) + 1);
+    }
+  });
+  return porEstado;
+}
+
+/* =========================================================
+   FUNIL — status mais recente por corretor dentro do período
+   ========================================================= */
+function calcularFunil() {
+  const { fim } = obterPeriodoAtual();
+  const contagem = new Map(ORDEM_ETAPAS.map(e => [e, 0]));
+  let totalConsiderado = 0;
+
+  state.cadastro.forEach(corretor => {
+    if (corretor.dataCadastro > fim) return; // ainda não existia no período
+
+    const logsDoCorretor = state.logFunil.filter(l => l.id === corretor.id && l.data <= fim);
+    let etapaAtual;
+    if (logsDoCorretor.length > 0) {
+      etapaAtual = logsDoCorretor[logsDoCorretor.length - 1].etapaNova;
+    } else {
+      etapaAtual = "Prospectado";
+    }
+    if (!contagem.has(etapaAtual)) contagem.set(etapaAtual, 0);
+    contagem.set(etapaAtual, contagem.get(etapaAtual) + 1);
+    totalConsiderado++;
+  });
+
+  return { contagem, total: totalConsiderado };
+}
+
+/* =========================================================
+   TEMPO MÉDIO POR ETAPA
+   ========================================================= */
+function calcularTempoMedioPorEtapa() {
+  const { fim } = obterPeriodoAtual();
+  const somaPorEtapa = new Map(ORDEM_ETAPAS.map(e => [e, 0]));
+  const contPorEtapa = new Map(ORDEM_ETAPAS.map(e => [e, 0]));
+
+  state.cadastro.forEach(corretor => {
+    if (corretor.dataCadastro > fim) return;
+
+    const logs = state.logFunil.filter(l => l.id === corretor.id && l.data <= fim);
+
+    // Monta linha do tempo: [{data, etapa}]
+    const linha = [];
+    const primeiraEtapa = logs.length > 0 && logs[0].etapaAnterior
+      ? logs[0].etapaAnterior
+      : "Prospectado";
+    linha.push({ data: corretor.dataCadastro, etapa: primeiraEtapa });
+    logs.forEach(l => linha.push({ data: l.data, etapa: l.etapaNova }));
+
+    for (let i = 0; i < linha.length; i++) {
+      const atual = linha[i];
+      const proxima = linha[i + 1];
+      const dataFinal = proxima ? proxima.data : fim;
+      const dias = Math.max(0, diffDias(atual.data, dataFinal));
+      if (!somaPorEtapa.has(atual.etapa)) {
+        somaPorEtapa.set(atual.etapa, 0);
+        contPorEtapa.set(atual.etapa, 0);
+      }
+      somaPorEtapa.set(atual.etapa, somaPorEtapa.get(atual.etapa) + dias);
+      contPorEtapa.set(atual.etapa, contPorEtapa.get(atual.etapa) + 1);
+    }
+  });
+
+  const medias = new Map();
+  ORDEM_ETAPAS.forEach(e => {
+    const cont = contPorEtapa.get(e) || 0;
+    const soma = somaPorEtapa.get(e) || 0;
+    medias.set(e, cont > 0 ? soma / cont : null);
+  });
+  return medias;
+}
+
+/* =========================================================
+   RENDERIZAÇÃO — Dashboard
+   ========================================================= */
+const PALETA = ["#4f46e5", "#7c74f2", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#84cc16"];
+
+function destruirChart(nome) {
+  if (state.charts[nome]) { state.charts[nome].destroy(); delete state.charts[nome]; }
+}
+
+function renderizarDashboard() {
+  const m = calcularMetricasDashboard();
+
+  // Por dia
+  destruirChart("porDia");
+  state.charts.porDia = new Chart(document.getElementById("chart-por-dia"), {
+    type: "bar",
+    data: { labels: m.porDia.labels, datasets: [{ label: "Corretores cadastrados", data: m.porDia.valores, backgroundColor: PALETA[0], borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  // Semanal
+  destruirChart("semanal");
+  state.charts.semanal = new Chart(document.getElementById("chart-semanal"), {
+    type: "line",
+    data: { labels: m.porSemana.labels, datasets: [{ label: "Cadastros por semana", data: m.porSemana.valores, borderColor: PALETA[1], backgroundColor: "rgba(124,116,242,0.15)", fill: true, tension: 0.3 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  // Canal
+  const canalLabels = [...m.porCanalMap.keys()];
+  const canalValores = [...m.porCanalMap.values()];
+  destruirChart("canal");
+  state.charts.canal = new Chart(document.getElementById("chart-canal"), {
+    type: "pie",
+    data: { labels: canalLabels, datasets: [{ data: canalValores, backgroundColor: PALETA }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  // CV
+  document.getElementById("kpi-total").textContent = m.total;
+  document.getElementById("kpi-cv").textContent = m.totalCV;
+  document.getElementById("kpi-cv-pct").textContent = m.pctCV + "%";
+  destruirChart("cv");
+  state.charts.cv = new Chart(document.getElementById("chart-cv"), {
+    type: "bar",
+    data: {
+      labels: ["Período"],
+      datasets: [
+        { label: "Total", data: [m.total], backgroundColor: "#d1d5db", borderRadius: 6 },
+        { label: "Cadastrados no CV", data: [m.totalCV], backgroundColor: PALETA[0], borderRadius: 6 }
+      ]
+    },
+    options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  renderizarRegiao(m.cadastroFiltrado);
+}
+
+function renderizarRegiao(cadastroFiltrado) {
+  const canvas = document.getElementById("chart-regiao");
+  destruirChart("regiao");
+
+  if (state.regionFilter) {
+    const porEstado = drillDownRegiao(state.regionFilter, cadastroFiltrado);
+    const labels = [...porEstado.keys()];
+    const valores = [...porEstado.values()];
+    document.getElementById("titulo-regiao").textContent = "Volume por estado — " + state.regionFilter;
+    document.getElementById("desc-regiao").textContent = "Detalhamento por estado dentro da região selecionada.";
+    state.charts.regiao = new Chart(canvas, {
+      type: "bar",
+      data: { labels, datasets: [{ label: "Corretores", data: valores, backgroundColor: PALETA[2], borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  } else {
+    const porRegiao = agruparPorRegiao(cadastroFiltrado);
+    document.getElementById("titulo-regiao").textContent = "Volume por região";
+    document.getElementById("desc-regiao").textContent = "Corretores agrupados pela região do estado informado no cadastro. Clique em uma região para detalhar por estado.";
+    state.charts.regiao = new Chart(canvas, {
+      type: "bar",
+      data: { labels: [...porRegiao.keys()], datasets: [{ label: "Corretores", data: [...porRegiao.values()], backgroundColor: PALETA[0], borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  }
+
+  renderizarFiltrosRegiao(cadastroFiltrado);
+}
+
+function renderizarFiltrosRegiao(cadastroFiltrado) {
+  const container = document.getElementById("region-filters");
+  container.innerHTML = "";
+
+  const btnTodas = document.createElement("button");
+  btnTodas.textContent = "Todas as regiões";
+  btnTodas.className = state.regionFilter === null ? "active" : "";
+  btnTodas.onclick = () => { state.regionFilter = null; renderizarRegiao(filtrarPorPeriodo(state.cadastro, "dataCadastro")); };
+  container.appendChild(btnTodas);
+
+  ORDEM_REGIOES.forEach(regiao => {
+    const btn = document.createElement("button");
+    btn.textContent = regiao;
+    btn.className = state.regionFilter === regiao ? "active" : "";
+    btn.onclick = () => { state.regionFilter = regiao; renderizarRegiao(filtrarPorPeriodo(state.cadastro, "dataCadastro")); };
+    container.appendChild(btn);
+  });
+}
+
+/* =========================================================
+   RENDERIZAÇÃO — Funil
+   ========================================================= */
+function renderizarFunil() {
+  const { contagem, total } = calcularFunil();
+  const container = document.getElementById("funnel-container");
+  container.innerHTML = "";
+
+  const maxValor = Math.max(1, ...ORDEM_ETAPAS.map(e => contagem.get(e) || 0));
+
+  ORDEM_ETAPAS.forEach(etapa => {
+    const qtd = contagem.get(etapa) || 0;
+    const pct = total > 0 ? ((qtd / total) * 100).toFixed(1) : "0.0";
+    const largura = Math.max(4, (qtd / maxValor) * 100);
+
+    const row = document.createElement("div");
+    row.className = "funnel-stage";
+    row.innerHTML = `
+      <div class="funnel-label">${ETAPA_LABEL[etapa] || etapa}</div>
+      <div class="funnel-bar-outer">
+        <div class="funnel-bar-inner" style="width:${largura}%">${qtd}</div>
+      </div>
+      <div class="funnel-pct">${pct}%</div>
+    `;
+    container.appendChild(row);
+  });
+
+  renderizarTempoEtapas();
+}
+
+function renderizarTempoEtapas() {
+  const medias = calcularTempoMedioPorEtapa();
+  const container = document.getElementById("tempo-etapas");
+  container.innerHTML = "";
+
+  ORDEM_ETAPAS.forEach(etapa => {
+    const media = medias.get(etapa);
+    const div = document.createElement("div");
+    div.className = "etapa-tempo-item";
+    div.innerHTML = `
+      <div class="val">${media === null ? "—" : media.toFixed(1) + "d"}</div>
+      <div class="lbl">${ETAPA_LABEL[etapa] || etapa}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+/* =========================================================
+   RENDER GERAL
+   ========================================================= */
+function renderizarTudo() {
+  renderizarDashboard();
+  renderizarFunil();
+}
+
+/* =========================================================
+   NAVEGAÇÃO E CONTROLES DE UI
+   ========================================================= */
+document.querySelectorAll(".nav-link").forEach(link => {
+  link.addEventListener("click", e => {
+    e.preventDefault();
+    document.querySelectorAll(".nav-link").forEach(l => l.classList.remove("active"));
+    link.classList.add("active");
+    const viewId = link.dataset.view;
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    document.getElementById("view-" + viewId).classList.add("active");
+    document.getElementById("page-title").textContent = viewId === "dashboard" ? "Dashboard" : "Funil de Vendas";
+  });
+});
+
+document.querySelectorAll(".period-buttons button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".period-buttons button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.periodType = btn.dataset.period;
+    document.getElementById("custom-dates").classList.toggle("visible", state.periodType === "personalizado");
+    if (state.periodType !== "personalizado") renderizarTudo();
+  });
+});
+
+document.getElementById("data-inicio").addEventListener("change", e => {
+  state.customStart = e.target.value ? new Date(e.target.value + "T00:00:00") : null;
+  if (state.periodType === "personalizado") renderizarTudo();
+});
+document.getElementById("data-fim").addEventListener("change", e => {
+  state.customEnd = e.target.value ? new Date(e.target.value + "T00:00:00") : null;
+  if (state.periodType === "personalizado") renderizarTudo();
+});
+
+document.getElementById("btn-refresh").addEventListener("click", carregarDados);
+
+/* =========================================================
+   INICIALIZAÇÃO
+   ========================================================= */
+carregarDados();
+</script>
