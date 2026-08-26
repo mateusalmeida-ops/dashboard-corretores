@@ -1,65 +1,103 @@
-<title>Dashboard de Corretores</title>
+<title>Dashboard de Corretores — Cavalcante & Rolim</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
+  /*
+   * Identidade visual: Cavalcante & Rolim (Brandbook 2023/2024)
+   * Tipografia primária "Lucant" -> Fraunces (serifada, aparada, mesmo espírito de luxo natural)
+   * Tipografia secundária "Apoollo" -> Jost (grotesca geométrica, mesma leveza)
+   * Paleta oficial: Dunas #1D332B, Elixir #EFECE8, Palms #DAD5C8, #AA805B, #EACF8B
+   */
   :root {
-    --bg: #f4f5f7;
+    --cr-verde: #1D332B;
+    --cr-marfim: #EFECE8;
+    --cr-areia: #DAD5C8;
+    --cr-caramelo: #AA805B;
+    --cr-dourado: #EACF8B;
+
+    --bg: var(--cr-marfim);
     --card-bg: #ffffff;
-    --border: #e5e7eb;
-    --text: #1f2430;
-    --text-muted: #6b7280;
-    --accent: #4f46e5;
-    --accent-light: #eef2ff;
-    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    --sidebar-w: 220px;
-    --danger: #dc2626;
-    --success: #16a34a;
+    --border: #e2ddd2;
+    --text: var(--cr-verde);
+    --text-muted: #6f7d75;
+    --accent: var(--cr-caramelo);
+    --accent-light: #f3e9dc;
+    --shadow: 0 1px 3px rgba(29,51,43,0.08), 0 1px 2px rgba(29,51,43,0.05);
+    --sidebar-w: 232px;
+    --danger: #a3402f;
+    --success: #4c7a5e;
+    --font-display: "Fraunces", "Playfair Display", Georgia, serif;
+    --font-body: "Jost", "Segoe UI", Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-body);
     background: var(--bg);
     color: var(--text);
   }
+  h1, h2, h3, .funnel-label { font-family: var(--font-display); font-weight: 500; }
   /* ===== Sidebar ===== */
   .sidebar {
     position: fixed;
     top: 0; left: 0; bottom: 0;
     width: var(--sidebar-w);
-    background: #191c27;
-    color: #d7d9e0;
+    background: var(--cr-verde);
+    color: var(--cr-areia);
     display: flex;
     flex-direction: column;
-    padding: 20px 0;
+    padding: 26px 0;
     z-index: 20;
   }
   .sidebar .brand {
-    font-size: 16px;
-    font-weight: 700;
+    padding: 0 22px 22px 22px;
+    border-bottom: 1px solid rgba(239,236,232,0.15);
+    margin-bottom: 14px;
+  }
+  .sidebar .brand .monograma {
+    font-family: var(--font-display);
+    font-size: 30px;
+    color: var(--cr-dourado);
+    line-height: 1;
+  }
+  .sidebar .brand .nome {
+    font-family: var(--font-display);
+    font-size: 15px;
     color: #fff;
-    padding: 0 20px 20px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 10px;
+    letter-spacing: 0.06em;
+    margin-top: 8px;
+  }
+  .sidebar .brand .selo {
+    font-family: var(--font-body);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--cr-areia);
+    opacity: 0.75;
+    margin-top: 3px;
   }
   .sidebar nav a {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 20px;
-    color: #b6b9c6;
+    padding: 12px 22px;
+    color: var(--cr-areia);
     text-decoration: none;
-    font-size: 14px;
+    font-size: 13.5px;
+    letter-spacing: 0.02em;
     cursor: pointer;
     border-left: 3px solid transparent;
   }
-  .sidebar nav a:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  .sidebar nav a:hover { background: rgba(239,236,232,0.06); color: #fff; }
   .sidebar nav a.active {
-    background: rgba(79,70,229,0.15);
+    background: rgba(234,207,139,0.14);
     color: #fff;
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--cr-dourado);
   }
   .sidebar .icon { font-size: 16px; width: 18px; text-align: center; }
 
@@ -78,7 +116,7 @@
     margin-bottom: 22px;
   }
   .topbar h1 {
-    font-size: 22px;
+    font-size: 26px;
     margin: 0 0 4px 0;
   }
   .topbar .subtitle {
@@ -200,7 +238,8 @@
   }
   .funnel-bar-outer {
     flex: 1;
-    background: #f0f1f5;
+    background: var(--cr-marfim);
+    border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
     height: 34px;
@@ -208,7 +247,7 @@
   }
   .funnel-bar-inner {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent), #7c74f2);
+    background: linear-gradient(90deg, var(--cr-verde), var(--cr-caramelo));
     display: flex;
     align-items: center;
     padding-left: 10px;
@@ -273,10 +312,14 @@
 </style>
 
 <div class="sidebar">
-  <div class="brand">📊 Corretores</div>
+  <div class="brand">
+    <div class="monograma">CR</div>
+    <div class="nome">Cavalcante &amp; Rolim</div>
+    <div class="selo">Corretores Parceiros</div>
+  </div>
   <nav>
-    <a href="#" class="nav-link active" data-view="dashboard"><span class="icon">🏠</span> Dashboard</a>
-    <a href="#" class="nav-link" data-view="funil"><span class="icon">🔻</span> Funil de Vendas</a>
+    <a href="#" class="nav-link active" data-view="dashboard"><span class="icon">◆</span> Dashboard</a>
+    <a href="#" class="nav-link" data-view="funil"><span class="icon">▽</span> Funil de Vendas</a>
   </nav>
 </div>
 
@@ -284,7 +327,7 @@
   <div class="topbar">
     <div>
       <h1 id="page-title">Dashboard</h1>
-      <div class="subtitle">Gestão de corretores parceiros</div>
+      <div class="subtitle">Gestão de corretores parceiros · Cavalcante &amp; Rolim</div>
     </div>
 
     <div class="period-box">
@@ -715,7 +758,12 @@ function calcularTempoMedioPorEtapa() {
 /* =========================================================
    RENDERIZAÇÃO — Dashboard
    ========================================================= */
-const PALETA = ["#4f46e5", "#7c74f2", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#84cc16"];
+// Paleta oficial Cavalcante & Rolim (Dunas, Caramelo, Dourado, Palms) + tons derivados para dar variedade aos gráficos
+const PALETA = ["#1D332B", "#AA805B", "#EACF8B", "#6f8f7c", "#8a6a4a", "#c9b48a", "#3f5c4d", "#DAD5C8"];
+
+Chart.defaults.font.family = "Jost, 'Segoe UI', Helvetica, Arial, sans-serif";
+Chart.defaults.color = "#1D332B";
+Chart.defaults.borderColor = "#e2ddd2";
 
 function destruirChart(nome) {
   if (state.charts[nome]) { state.charts[nome].destroy(); delete state.charts[nome]; }
@@ -736,7 +784,7 @@ function renderizarDashboard() {
   destruirChart("semanal");
   state.charts.semanal = new Chart(document.getElementById("chart-semanal"), {
     type: "line",
-    data: { labels: m.porSemana.labels, datasets: [{ label: "Cadastros por semana", data: m.porSemana.valores, borderColor: PALETA[1], backgroundColor: "rgba(124,116,242,0.15)", fill: true, tension: 0.3 }] },
+    data: { labels: m.porSemana.labels, datasets: [{ label: "Cadastros por semana", data: m.porSemana.valores, borderColor: PALETA[1], backgroundColor: "rgba(170,128,91,0.15)", fill: true, tension: 0.3 }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
   });
 
@@ -760,7 +808,7 @@ function renderizarDashboard() {
     data: {
       labels: ["Período"],
       datasets: [
-        { label: "Total", data: [m.total], backgroundColor: "#d1d5db", borderRadius: 6 },
+        { label: "Total", data: [m.total], backgroundColor: "#DAD5C8", borderRadius: 6 },
         { label: "Cadastrados no CV", data: [m.totalCV], backgroundColor: PALETA[0], borderRadius: 6 }
       ]
     },
