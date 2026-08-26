@@ -635,6 +635,11 @@ function normalizarUF(valor) {
   return null;
 }
 
+// Coluna Status_CV é preenchida com o texto "CADASTRADO" ou "SEM CADASTRO"
+function ehSemCadastro(corretor) {
+  return corretor.statusCVTexto === "sem cadastro";
+}
+
 function inicioDoDia(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
 function fimDoDia(d) { const x = new Date(d); x.setHours(23,59,59,999); return x; }
 function diffDias(a, b) { return (b - a) / (1000 * 60 * 60 * 24); }
@@ -688,7 +693,7 @@ async function carregarDados() {
         dataCadastro: parseDataBR(r.Data_Cadastro),
         canal: (r.Canal_Entrada || "Outros").trim(),
         uf: normalizarUF(r.Estado),
-        statusCV: (r.Status_CV || "").trim().toLowerCase() === "sim",
+        statusCVTexto: (r.Status_CV || "").trim().toLowerCase(),
         statusAtual: (r.Status_Atual || "").trim()
       }))
       .filter(r => r.dataCadastro);
@@ -804,7 +809,7 @@ function calcularMetricasDashboard() {
 
   // CV — "Sem cadastro" conta os corretores que ainda NÃO estão cadastrados no sistema CV (Status_CV diferente de "Sim")
   const total = cadastroFiltrado.length;
-  const totalSemCadastro = cadastroFiltrado.filter(r => !r.statusCV).length;
+  const totalSemCadastro = cadastroFiltrado.filter(ehSemCadastro).length;
   const pctSemCadastro = total > 0 ? Math.round((totalSemCadastro / total) * 100) : 0;
 
   return { cadastroFiltrado, porDia, porSemana, porCanalMap, total, totalSemCadastro, pctSemCadastro };
@@ -1056,7 +1061,7 @@ function renderizarDashboard() {
   const { inicio: inicioAnt, fim: fimAnt } = obterPeriodoAnterior();
   const cadastroAnterior = filtrarPorIntervalo(state.cadastro, "dataCadastro", inicioAnt, fimAnt);
   const totalAnt = cadastroAnterior.length;
-  const totalSemCadastroAnt = cadastroAnterior.filter(r => !r.statusCV).length;
+  const totalSemCadastroAnt = cadastroAnterior.filter(ehSemCadastro).length;
   const pctSemCadastroAnt = totalAnt > 0 ? (totalSemCadastroAnt / totalAnt) * 100 : 0;
   aplicarTrend("trend-total", m.total, totalAnt);
   aplicarTrend("trend-cv", m.totalSemCadastro, totalSemCadastroAnt);
