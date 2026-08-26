@@ -508,6 +508,26 @@
         <div class="etapa-tempo-grid" id="tempo-etapas"></div>
       </div>
     </div>
+
+    <div class="grid full">
+      <div class="card">
+        <h3>Visão de Descartados</h3>
+        <div class="card-desc">Motivos de descarte e comparativo com os corretores ativos, com base na aba "Descartados" da planilha (registros únicos por corretor, no período selecionado).</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Motivos de descarte</h3>
+        <div class="card-desc">Quantidade de corretores descartados por motivo, do maior para o menor.</div>
+        <div class="chart-wrap tall"><canvas id="chart-motivos-descarte"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Ativos x Descartados</h3>
+        <div class="card-desc">Comparativo entre corretores atualmente ativos e descartados no período.</div>
+        <div class="chart-wrap tall"><canvas id="chart-ativos-descartados"></canvas></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -519,7 +539,9 @@ const CONFIG = {
   // Aba "Cadastro" publicada como CSV (gid=0)
   URL_CADASTRO: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=0&single=true&output=csv",
   // Aba "Log_Funil" publicada como CSV (gid=1874964851)
-  URL_LOG_FUNIL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1874964851&single=true&output=csv"
+  URL_LOG_FUNIL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1874964851&single=true&output=csv",
+  // Aba "Descartados" publicada como CSV (gid=1454946292)
+  URL_DESCARTADOS: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1454946292&single=true&output=csv"
 };
 
 /* =========================================================
@@ -581,6 +603,7 @@ function normalizarEtapa(str) {
 const state = {
   cadastro: [],
   logFunil: [],
+  descartados: [],
   periodType: "mes",
   customStart: null,
   customEnd: null,
@@ -651,9 +674,10 @@ async function carregarDados() {
   mostrarCarregando(true);
   mostrarErro(false);
   try {
-    const [cadastroRaw, logRaw] = await Promise.all([
+    const [cadastroRaw, logRaw, descartadosRaw] = await Promise.all([
       buscarCSV(CONFIG.URL_CADASTRO),
-      buscarCSV(CONFIG.URL_LOG_FUNIL)
+      buscarCSV(CONFIG.URL_LOG_FUNIL),
+      buscarCSV(CONFIG.URL_DESCARTADOS)
     ]);
 
     state.cadastro = cadastroRaw
@@ -680,6 +704,16 @@ async function carregarDados() {
       }))
       .filter(r => r.data && r.etapaNova)
       .sort((a, b) => a.data - b.data);
+
+    state.descartados = descartadosRaw
+      .filter(r => r.ID_Corretor)
+      .map(r => ({
+        id: String(r.ID_Corretor).trim(),
+        nome: r.Nome || "",
+        dataDescarte: parseDataBR(r.Data_Descarte),
+        motivo: (r.Motivo || "").trim() || "Não informado"
+      }))
+      .filter(r => r.dataDescarte);
 
     mostrarCarregando(false);
     renderizarTudo();
@@ -868,6 +902,39 @@ function calcularTempoMedioPorEtapa() {
 }
 
 /* =========================================================
+   VISÃO DE DESCARTADOS (aba "Descartados")
+   ========================================================= */
+// Um corretor pode aparecer mais de uma vez na aba Descartados (ex.: descartado, reativado e descartado
+// de novo). Para evitar contagem duplicada, mantemos apenas o registro mais recente de cada ID_Corretor
+// dentro do período selecionado.
+function descartadosUnicosNoPeriodo() {
+  const { fim } = obterPeriodoAtual();
+  const maisRecentePorId = new Map();
+  state.descartados.forEach(d => {
+    if (d.dataDescarte > fim) return;
+    const existente = maisRecentePorId.get(d.id);
+    if (!existente || d.dataDescarte > existente.dataDescarte) {
+      maisRecentePorId.set(d.id, d);
+    }
+  });
+  return [...maisRecentePorId.values()];
+}
+
+function calcularMotivosDescarte() {
+  const unicos = descartadosUnicosNoPeriodo();
+  const porMotivo = new Map();
+  unicos.forEach(d => {
+    porMotivo.set(d.motivo, (porMotivo.get(d.motivo) || 0) + 1);
+  });
+  const ordenado = [...porMotivo.entries()].sort((a, b) => b[1] - a[1]);
+  return {
+    labels: ordenado.map(e => e[0]),
+    valores: ordenado.map(e => e[1]),
+    total: unicos.length
+  };
+}
+
+/* =========================================================
    RENDERIZAÇÃO — Dashboard
    ========================================================= */
 // Paleta oficial Cavalcante & Rolim (Dunas, Caramelo, Dourado, Palms) + tons derivados para dar variedade aos gráficos
@@ -880,6 +947,37 @@ Chart.defaults.borderColor = "#e2ddd2";
 function destruirChart(nome) {
   if (state.charts[nome]) { state.charts[nome].destroy(); delete state.charts[nome]; }
 }
+
+// Plugin leve (sem dependência externa) que escreve a quantidade de cada barra diretamente no gráfico
+const pluginValoresNaBarra = {
+  id: "valoresNaBarra",
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const horizontal = chart.options.indexAxis === "y";
+    chart.data.datasets.forEach((dataset, di) => {
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach((elemento, i) => {
+        const valor = dataset.data[i];
+        if (valor === null || valor === undefined) return;
+        const pos = elemento.tooltipPosition();
+        ctx.save();
+        ctx.fillStyle = "#1D332B";
+        ctx.font = "600 12px Jost, 'Segoe UI', sans-serif";
+        if (horizontal) {
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillText(valor, pos.x + 8, pos.y);
+        } else {
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(valor, pos.x, pos.y - 6);
+        }
+        ctx.restore();
+      });
+    });
+  }
+};
 
 // Calcula a variação percentual entre o valor atual e o do período anterior. Retorna null quando não há base de comparação (anterior = 0 e atual > 0).
 function calcularVariacaoPct(atual, anterior) {
@@ -1056,6 +1154,7 @@ function renderizarFunil() {
   });
 
   renderizarTempoEtapas();
+  renderizarDescartados();
 }
 
 function renderizarTempoEtapas() {
@@ -1072,6 +1171,45 @@ function renderizarTempoEtapas() {
       <div class="lbl">${ETAPA_LABEL[etapa] || etapa}</div>
     `;
     container.appendChild(div);
+  });
+}
+
+function renderizarDescartados() {
+  // Motivos de descarte — barras ordenadas da maior para a menor quantidade
+  const { labels, valores, total } = calcularMotivosDescarte();
+  destruirChart("motivosDescarte");
+  state.charts.motivosDescarte = new Chart(document.getElementById("chart-motivos-descarte"), {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Descartados", data: valores, backgroundColor: PALETA[1], borderRadius: 6 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 22 } },
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    },
+    plugins: [pluginValoresNaBarra]
+  });
+
+  // Ativos x Descartados — mesma base de dados (Cadastro/Log_Funil para Ativos, aba Descartados para Descartados)
+  const { contagem } = calcularFunil();
+  const ativos = contagem.get("Ativo") || 0;
+  destruirChart("ativosDescartados");
+  state.charts.ativosDescartados = new Chart(document.getElementById("chart-ativos-descartados"), {
+    type: "bar",
+    data: {
+      labels: ["Ativos", "Descartados"],
+      datasets: [{ data: [ativos, total], backgroundColor: [PALETA[0], PALETA[1]], borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 34 } },
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+    },
+    plugins: [pluginValoresNaBarra]
   });
 }
 
