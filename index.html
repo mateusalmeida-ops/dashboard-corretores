@@ -462,7 +462,7 @@
       </div>
       <div class="card">
         <h3>Cadastrados no CV</h3>
-        <div class="card-desc">Total de corretores no período x quantidade ainda sem cadastro no sistema CV (comparado ao período anterior de mesma duração).</div>
+        <div class="card-desc">Corretores cadastrados no sistema CV x quantidade ainda sem cadastro, no período selecionado (comparado ao período anterior de mesma duração).</div>
         <div class="kpi-row" style="margin-bottom:14px;">
           <div class="kpi kpi-hero">
             <div class="kpi-head"><div class="kpi-label">Total no período</div><span class="trend" id="trend-total"></span></div>
@@ -807,12 +807,12 @@ function calcularMetricasDashboard() {
     porCanalMap.set(r.canal, (porCanalMap.get(r.canal) || 0) + 1);
   });
 
-  // CV — "Sem cadastro" conta os corretores que ainda NÃO estão cadastrados no sistema CV (Status_CV diferente de "Sim")
-  const total = cadastroFiltrado.length;
+  // CV — "Total no período" conta apenas quem está CADASTRADO no Status_CV; "Sem cadastro" conta quem está "SEM CADASTRO"
+  const totalCadastrado = cadastroFiltrado.filter(r => r.statusCVTexto === "cadastrado").length;
   const totalSemCadastro = cadastroFiltrado.filter(ehSemCadastro).length;
-  const pctSemCadastro = total > 0 ? Math.round((totalSemCadastro / total) * 100) : 0;
+  const pctSemCadastro = totalCadastrado > 0 ? Math.round((totalSemCadastro / totalCadastrado) * 100) : 0;
 
-  return { cadastroFiltrado, porDia, porSemana, porCanalMap, total, totalSemCadastro, pctSemCadastro };
+  return { cadastroFiltrado, porDia, porSemana, porCanalMap, total: totalCadastrado, totalSemCadastro, pctSemCadastro };
 }
 
 function agruparPorRegiao(cadastroFiltrado) {
@@ -1060,10 +1060,10 @@ function renderizarDashboard() {
   // Tendência vs período anterior de mesma duração
   const { inicio: inicioAnt, fim: fimAnt } = obterPeriodoAnterior();
   const cadastroAnterior = filtrarPorIntervalo(state.cadastro, "dataCadastro", inicioAnt, fimAnt);
-  const totalAnt = cadastroAnterior.length;
+  const totalCadastradoAnt = cadastroAnterior.filter(r => r.statusCVTexto === "cadastrado").length;
   const totalSemCadastroAnt = cadastroAnterior.filter(ehSemCadastro).length;
-  const pctSemCadastroAnt = totalAnt > 0 ? (totalSemCadastroAnt / totalAnt) * 100 : 0;
-  aplicarTrend("trend-total", m.total, totalAnt);
+  const pctSemCadastroAnt = totalCadastradoAnt > 0 ? (totalSemCadastroAnt / totalCadastradoAnt) * 100 : 0;
+  aplicarTrend("trend-total", m.total, totalCadastradoAnt);
   aplicarTrend("trend-cv", m.totalSemCadastro, totalSemCadastroAnt);
   aplicarTrend("trend-cv-pct", m.pctSemCadastro, pctSemCadastroAnt);
 
@@ -1073,7 +1073,7 @@ function renderizarDashboard() {
     data: {
       labels: ["Período"],
       datasets: [
-        { label: "Total", data: [m.total], backgroundColor: "#DAD5C8", borderRadius: 6 },
+        { label: "Cadastrado", data: [m.total], backgroundColor: "#DAD5C8", borderRadius: 6 },
         { label: "Sem cadastro", data: [m.totalSemCadastro], backgroundColor: PALETA[0], borderRadius: 6 }
       ]
     },
