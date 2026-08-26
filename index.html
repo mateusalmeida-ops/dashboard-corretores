@@ -101,11 +101,36 @@
   }
   .sidebar .icon { font-size: 16px; width: 18px; text-align: center; }
 
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,20,0.45);
+    z-index: 15;
+  }
+  .sidebar-backdrop.visible { display: block; }
+
+  .menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--text);
+    flex-shrink: 0;
+  }
+
   /* ===== Main layout ===== */
   .main {
     margin-left: var(--sidebar-w);
     padding: 24px 28px 60px 28px;
     min-height: 100vh;
+    transition: margin-left .2s ease;
   }
   .topbar {
     display: flex;
@@ -115,6 +140,7 @@
     gap: 14px;
     margin-bottom: 22px;
   }
+  .topbar-title { display: flex; align-items: flex-start; gap: 12px; }
   .topbar h1 {
     font-size: 26px;
     margin: 0 0 4px 0;
@@ -128,28 +154,30 @@
   .period-box {
     background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 10px 14px;
+    border-radius: 999px;
+    padding: 6px;
     box-shadow: var(--shadow);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
-  .period-buttons { display: flex; gap: 6px; }
+  .period-buttons { display: flex; gap: 2px; background: var(--cr-marfim); border-radius: 999px; padding: 3px; }
   .period-buttons button {
-    border: 1px solid var(--border);
-    background: #fff;
-    border-radius: 8px;
-    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    padding: 8px 14px;
     font-size: 13px;
     cursor: pointer;
-    color: var(--text);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    transition: background .15s ease, color .15s ease;
   }
   .period-buttons button.active {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--cr-verde);
     color: #fff;
+    font-weight: 500;
   }
   .custom-dates { display: none; align-items: center; gap: 8px; }
   .custom-dates.visible { display: flex; }
@@ -162,12 +190,13 @@
   .refresh-btn {
     border: 1px solid var(--border);
     background: #fff;
-    border-radius: 8px;
-    padding: 7px 12px;
+    border-radius: 999px;
+    padding: 9px 16px;
     font-size: 13px;
     cursor: pointer;
     color: var(--accent);
     font-weight: 600;
+    font-family: var(--font-body);
   }
   .refresh-btn:hover { background: var(--accent-light); }
 
@@ -186,13 +215,13 @@
   .card {
     background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px;
+    border-radius: 18px;
+    padding: 20px;
     box-shadow: var(--shadow);
   }
   .card h3 {
     margin: 0 0 4px 0;
-    font-size: 14px;
+    font-size: 15px;
     color: var(--text);
   }
   .card .card-desc {
@@ -208,11 +237,43 @@
     flex: 1;
     min-width: 140px;
     background: var(--accent-light);
-    border-radius: 12px;
-    padding: 14px 16px;
+    border-radius: 14px;
+    padding: 16px 18px;
   }
-  .kpi .kpi-value { font-size: 26px; font-weight: 700; color: var(--accent); }
-  .kpi .kpi-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .kpi-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .kpi .kpi-value { font-size: 28px; font-weight: 600; color: var(--text); font-family: var(--font-display); line-height: 1; }
+  .kpi .kpi-label { font-size: 12px; color: var(--text-muted); }
+  .kpi-hero { background: linear-gradient(135deg, var(--cr-verde), #2c4a3b); }
+  .kpi-hero .kpi-label { color: rgba(239,236,232,0.75); }
+  .kpi-hero .kpi-value { color: #fff; }
+
+  .trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    white-space: nowrap;
+  }
+  .trend.up { background: #e3efe6; color: var(--success); }
+  .trend.down { background: #f6e5e1; color: var(--danger); }
+  .kpi-hero .trend.up { background: rgba(76,122,94,0.35); color: #d9ecdf; }
+  .kpi-hero .trend.down { background: rgba(163,64,47,0.35); color: #f7d9d2; }
+
+  .canal-wrap { display: flex; align-items: center; gap: 20px; }
+  .canal-chart { position: relative; width: 150px; height: 150px; flex-shrink: 0; }
+  .canal-legend { flex: 1; display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+  .canal-legend-item { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+  .canal-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .canal-legend-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .canal-legend-pct { margin-left: auto; font-weight: 600; color: var(--text-muted); font-size: 12.5px; flex-shrink: 0; }
+  @media (max-width: 480px) {
+    .canal-wrap { flex-direction: column; align-items: stretch; }
+    .canal-chart { width: 100%; height: 200px; }
+  }
 
   .region-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
   .region-filters button {
@@ -309,6 +370,28 @@
     margin-bottom: 16px;
   }
   #loading-msg.visible { display: block; }
+
+  /* ===== Responsivo ===== */
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+      transition: transform .25s ease;
+      box-shadow: 6px 0 24px rgba(0,0,0,0.18);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .main { margin-left: 0; padding: 16px 16px 48px 16px; }
+    .menu-btn { display: inline-flex; }
+    .topbar h1 { font-size: 21px; }
+    .period-box { width: 100%; justify-content: space-between; }
+    .kpi-row { gap: 10px; }
+    .kpi { min-width: 100%; }
+  }
+  @media (max-width: 480px) {
+    .period-box { flex-direction: column; align-items: stretch; border-radius: 16px; }
+    .period-buttons { justify-content: center; }
+    .custom-dates { justify-content: center; }
+    .refresh-btn { width: 100%; }
+  }
 </style>
 
 <div class="sidebar">
@@ -322,12 +405,16 @@
     <a href="#" class="nav-link" data-view="funil"><span class="icon">▽</span> Funil de Vendas</a>
   </nav>
 </div>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
 <div class="main">
   <div class="topbar">
-    <div>
-      <h1 id="page-title">Dashboard</h1>
-      <div class="subtitle">Gestão de corretores parceiros · Cavalcante &amp; Rolim</div>
+    <div class="topbar-title">
+      <button class="menu-btn" id="btn-menu" aria-label="Abrir menu">☰</button>
+      <div>
+        <h1 id="page-title">Dashboard</h1>
+        <div class="subtitle">Gestão de corretores parceiros · Cavalcante &amp; Rolim</div>
+      </div>
     </div>
 
     <div class="period-box">
@@ -368,15 +455,27 @@
       <div class="card">
         <h3>Volume por canal de entrada</h3>
         <div class="card-desc">Distribuição dos corretores por canal, no período selecionado.</div>
-        <div class="chart-wrap"><canvas id="chart-canal"></canvas></div>
+        <div class="canal-wrap">
+          <div class="canal-chart"><canvas id="chart-canal"></canvas></div>
+          <div class="canal-legend" id="canal-legend"></div>
+        </div>
       </div>
       <div class="card">
         <h3>Cadastrados no CV</h3>
-        <div class="card-desc">Total de corretores no período x quantidade já cadastrada no sistema CV.</div>
+        <div class="card-desc">Total de corretores no período x quantidade já cadastrada no sistema CV (comparado ao período anterior de mesma duração).</div>
         <div class="kpi-row" style="margin-bottom:14px;">
-          <div class="kpi"><div class="kpi-value" id="kpi-total">0</div><div class="kpi-label">Total no período</div></div>
-          <div class="kpi"><div class="kpi-value" id="kpi-cv">0</div><div class="kpi-label">Cadastrados no CV</div></div>
-          <div class="kpi"><div class="kpi-value" id="kpi-cv-pct">0%</div><div class="kpi-label">Conversão CV</div></div>
+          <div class="kpi kpi-hero">
+            <div class="kpi-head"><div class="kpi-label">Total no período</div><span class="trend" id="trend-total"></span></div>
+            <div class="kpi-value" id="kpi-total">0</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-head"><div class="kpi-label">Cadastrados no CV</div><span class="trend" id="trend-cv"></span></div>
+            <div class="kpi-value" id="kpi-cv">0</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-head"><div class="kpi-label">Conversão CV</div><span class="trend" id="trend-cv-pct"></span></div>
+            <div class="kpi-value" id="kpi-cv-pct">0%</div>
+          </div>
         </div>
         <div class="chart-wrap" style="height:160px;"><canvas id="chart-cv"></canvas></div>
       </div>
@@ -620,6 +719,19 @@ function filtrarPorPeriodo(registros, campoData) {
   return registros.filter(r => r[campoData] >= inicio && r[campoData] <= fim);
 }
 
+// Período imediatamente anterior, com a mesma duração do período selecionado — usado para os indicadores de tendência (vs período anterior)
+function obterPeriodoAnterior() {
+  const { inicio, fim } = obterPeriodoAtual();
+  const duracaoMs = fim.getTime() - inicio.getTime();
+  const fimAnterior = new Date(inicio.getTime() - 1);
+  const inicioAnterior = new Date(fimAnterior.getTime() - duracaoMs);
+  return { inicio: inicioAnterior, fim: fimAnterior };
+}
+
+function filtrarPorIntervalo(registros, campoData, inicio, fim) {
+  return registros.filter(r => r[campoData] >= inicio && r[campoData] <= fim);
+}
+
 /* =========================================================
    DASHBOARD — cálculo de métricas
    ========================================================= */
@@ -769,6 +881,44 @@ function destruirChart(nome) {
   if (state.charts[nome]) { state.charts[nome].destroy(); delete state.charts[nome]; }
 }
 
+// Calcula a variação percentual entre o valor atual e o do período anterior. Retorna null quando não há base de comparação (anterior = 0 e atual > 0).
+function calcularVariacaoPct(atual, anterior) {
+  if (anterior === 0) return atual === 0 ? 0 : null;
+  return ((atual - anterior) / anterior) * 100;
+}
+
+function aplicarTrend(elId, atual, anterior) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const pct = calcularVariacaoPct(atual, anterior);
+  if (pct === null) {
+    el.className = "trend up";
+    el.textContent = "novo";
+    return;
+  }
+  const direcao = pct >= 0 ? "up" : "down";
+  el.className = "trend " + direcao;
+  el.textContent = (direcao === "up" ? "↑ " : "↓ ") + Math.abs(Math.round(pct)) + "%";
+}
+
+function renderizarLegendaCanal(canalLabels, canalValores) {
+  const total = canalValores.reduce((a, b) => a + b, 0);
+  const container = document.getElementById("canal-legend");
+  container.innerHTML = "";
+  canalLabels.forEach((label, i) => {
+    const valor = canalValores[i];
+    const pct = total > 0 ? Math.round((valor / total) * 100) : 0;
+    const item = document.createElement("div");
+    item.className = "canal-legend-item";
+    item.innerHTML = `
+      <span class="canal-legend-dot" style="background:${PALETA[i % PALETA.length]}"></span>
+      <span class="canal-legend-nome">${label}</span>
+      <span class="canal-legend-pct">${pct}%</span>
+    `;
+    container.appendChild(item);
+  });
+}
+
 function renderizarDashboard() {
   const m = calcularMetricasDashboard();
 
@@ -793,15 +943,27 @@ function renderizarDashboard() {
   const canalValores = [...m.porCanalMap.values()];
   destruirChart("canal");
   state.charts.canal = new Chart(document.getElementById("chart-canal"), {
-    type: "pie",
-    data: { labels: canalLabels, datasets: [{ data: canalValores, backgroundColor: PALETA }] },
-    options: { responsive: true, maintainAspectRatio: false }
+    type: "doughnut",
+    data: { labels: canalLabels, datasets: [{ data: canalValores, backgroundColor: PALETA, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: "68%", plugins: { legend: { display: false } } }
   });
+  renderizarLegendaCanal(canalLabels, canalValores);
 
   // CV
   document.getElementById("kpi-total").textContent = m.total;
   document.getElementById("kpi-cv").textContent = m.totalCV;
   document.getElementById("kpi-cv-pct").textContent = m.pctCV + "%";
+
+  // Tendência vs período anterior de mesma duração
+  const { inicio: inicioAnt, fim: fimAnt } = obterPeriodoAnterior();
+  const cadastroAnterior = filtrarPorIntervalo(state.cadastro, "dataCadastro", inicioAnt, fimAnt);
+  const totalAnt = cadastroAnterior.length;
+  const totalCVAnt = cadastroAnterior.filter(r => r.statusCV).length;
+  const pctCVAnt = totalAnt > 0 ? (totalCVAnt / totalAnt) * 100 : 0;
+  aplicarTrend("trend-total", m.total, totalAnt);
+  aplicarTrend("trend-cv", m.totalCV, totalCVAnt);
+  aplicarTrend("trend-cv-pct", m.pctCV, pctCVAnt);
+
   destruirChart("cv");
   state.charts.cv = new Chart(document.getElementById("chart-cv"), {
     type: "bar",
@@ -933,8 +1095,23 @@ document.querySelectorAll(".nav-link").forEach(link => {
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     document.getElementById("view-" + viewId).classList.add("active");
     document.getElementById("page-title").textContent = viewId === "dashboard" ? "Dashboard" : "Funil de Vendas";
+    fecharMenuMobile();
   });
 });
+
+// Menu lateral em mobile (off-canvas): abre com o botão hambúrguer, fecha no backdrop ou ao navegar
+const elSidebar = document.querySelector(".sidebar");
+const elBackdrop = document.getElementById("sidebar-backdrop");
+function abrirMenuMobile() {
+  elSidebar.classList.add("open");
+  elBackdrop.classList.add("visible");
+}
+function fecharMenuMobile() {
+  elSidebar.classList.remove("open");
+  elBackdrop.classList.remove("visible");
+}
+document.getElementById("btn-menu").addEventListener("click", abrirMenuMobile);
+elBackdrop.addEventListener("click", fecharMenuMobile);
 
 document.querySelectorAll(".period-buttons button").forEach(btn => {
   btn.addEventListener("click", () => {
