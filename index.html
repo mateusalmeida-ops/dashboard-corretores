@@ -401,7 +401,7 @@
     <div class="selo">Corretores Parceiros</div>
   </div>
   <nav>
-    <a href="#" class="nav-link active" data-view="dashboard"><span class="icon">◆</span> Dashboard</a>
+    <a href="#" class="nav-link active" data-view="dashboard"><span class="icon">◆</span> Painel de Corretores</a>
     <a href="#" class="nav-link" data-view="funil"><span class="icon">▽</span> Funil de Vendas</a>
   </nav>
 </div>
@@ -412,7 +412,7 @@
     <div class="topbar-title">
       <button class="menu-btn" id="btn-menu" aria-label="Abrir menu">☰</button>
       <div>
-        <h1 id="page-title">Dashboard</h1>
+        <h1 id="page-title">Painel de Corretores</h1>
         <div class="subtitle">Gestão de corretores parceiros · Cavalcante &amp; Rolim</div>
       </div>
     </div>
@@ -503,8 +503,8 @@
 
     <div class="grid full">
       <div class="card">
-        <h3>Tempo médio por etapa</h3>
-        <div class="card-desc">Média de dias entre a entrada em uma etapa e a entrada na etapa seguinte (ou até hoje, se o corretor ainda não avançou).</div>
+        <h3>Cadência por etapa</h3>
+        <div class="card-desc">Percentual de corretores que avançaram para a etapa seguinte, entre os que entraram na etapa anterior no período selecionado.</div>
         <div class="etapa-tempo-grid" id="tempo-etapas"></div>
       </div>
     </div>
@@ -523,9 +523,10 @@
         <div class="chart-wrap tall"><canvas id="chart-motivos-descarte"></canvas></div>
       </div>
       <div class="card">
-        <h3>Ativos x Descartados</h3>
-        <div class="card-desc">Comparativo entre corretores atualmente ativos e descartados no período.</div>
-        <div class="chart-wrap tall"><canvas id="chart-ativos-descartados"></canvas></div>
+        <h3>Cadastrados x Descartados</h3>
+        <div class="card-desc">Comparativo entre corretores cadastrados e descartados no período.</div>
+        <div class="chart-wrap tall"><canvas id="chart-cadastrados-descartados"></canvas></div>
+        <div class="card-desc" id="txt-pct-descarte" style="margin-top:10px; margin-bottom:0;"></div>
       </div>
     </div>
   </div>
@@ -679,11 +680,11 @@ async function carregarDados() {
   mostrarCarregando(true);
   mostrarErro(false);
   try {
-    const [cadastroRaw, logRaw, descartadosRaw] = await Promise.all([
-      buscarCSV(CONFIG.URL_CADASTRO),
-      buscarCSV(CONFIG.URL_LOG_FUNIL),
-      buscarCSV(CONFIG.URL_DESCARTADOS)
-    ]);
+    // Busca sequencial (em vez de Promise.all): 3+ requisições simultâneas para a mesma planilha
+    // publicada do Google Sheets podem travar sem nunca resolver nem rejeitar.
+    const cadastroRaw = await buscarCSV(CONFIG.URL_CADASTRO);
+    const logRaw = await buscarCSV(CONFIG.URL_LOG_FUNIL);
+    const descartadosRaw = await buscarCSV(CONFIG.URL_DESCARTADOS);
 
     state.cadastro = cadastroRaw
       .filter(r => r.ID_Corretor)
@@ -863,47 +864,52 @@ function calcularFunil() {
 }
 
 /* =========================================================
-   TEMPO MÉDIO POR ETAPA
+   CADÊNCIA POR ETAPA (% de conversão entre etapas consecutivas)
    ========================================================= */
-function calcularTempoMedioPorEtapa() {
-  const { fim } = obterPeriodoAtual();
-  const somaPorEtapa = new Map(ORDEM_ETAPAS.map(e => [e, 0]));
-  const contPorEtapa = new Map(ORDEM_ETAPAS.map(e => [e, 0]));
+// Reconstrói, por corretor, a linha do tempo de etapas [{data, etapa}] a partir do Log_Funil,
+// já usada também para outros cálculos do funil (ex.: reconstrução do status em uma data).
+function construirLinhaDoTempo(corretor, fimLimite) {
+  const logs = state.logFunil.filter(l => l.id === corretor.id && l.data <= fimLimite);
+  const linha = [];
+  const primeiraEtapa = logs.length > 0 && logs[0].etapaAnterior
+    ? logs[0].etapaAnterior
+    : "Prospectado";
+  linha.push({ data: corretor.dataCadastro, etapa: primeiraEtapa });
+  logs.forEach(l => linha.push({ data: l.data, etapa: l.etapaNova }));
+  return linha;
+}
+
+const ORDEM_TRANSICOES = [
+  ["Prospectado", "Cadastrado"],
+  ["Cadastrado", "Manutenção"],
+  ["Manutenção", "Ativo"]
+];
+
+function calcularCadenciaPorEtapa() {
+  const { inicio, fim } = obterPeriodoAtual();
+  const contagens = ORDEM_TRANSICOES.map(([de, para]) => ({ de, para, entraram: 0, avancaram: 0 }));
 
   state.cadastro.forEach(corretor => {
     if (corretor.dataCadastro > fim) return;
+    const linha = construirLinhaDoTempo(corretor, fim);
 
-    const logs = state.logFunil.filter(l => l.id === corretor.id && l.data <= fim);
-
-    // Monta linha do tempo: [{data, etapa}]
-    const linha = [];
-    const primeiraEtapa = logs.length > 0 && logs[0].etapaAnterior
-      ? logs[0].etapaAnterior
-      : "Prospectado";
-    linha.push({ data: corretor.dataCadastro, etapa: primeiraEtapa });
-    logs.forEach(l => linha.push({ data: l.data, etapa: l.etapaNova }));
-
-    for (let i = 0; i < linha.length; i++) {
-      const atual = linha[i];
-      const proxima = linha[i + 1];
-      const dataFinal = proxima ? proxima.data : fim;
-      const dias = Math.max(0, diffDias(atual.data, dataFinal));
-      if (!somaPorEtapa.has(atual.etapa)) {
-        somaPorEtapa.set(atual.etapa, 0);
-        contPorEtapa.set(atual.etapa, 0);
-      }
-      somaPorEtapa.set(atual.etapa, somaPorEtapa.get(atual.etapa) + dias);
-      contPorEtapa.set(atual.etapa, contPorEtapa.get(atual.etapa) + 1);
-    }
+    contagens.forEach(t => {
+      const entradaDe = linha.find(e => e.etapa === t.de);
+      if (!entradaDe) return;
+      if (entradaDe.data < inicio || entradaDe.data > fim) return; // conta quem entrou na etapa "de" dentro do período
+      t.entraram++;
+      const avancou = linha.some(e => e.etapa === t.para && e.data > entradaDe.data);
+      if (avancou) t.avancaram++;
+    });
   });
 
-  const medias = new Map();
-  ORDEM_ETAPAS.forEach(e => {
-    const cont = contPorEtapa.get(e) || 0;
-    const soma = somaPorEtapa.get(e) || 0;
-    medias.set(e, cont > 0 ? soma / cont : null);
-  });
-  return medias;
+  return contagens.map(t => ({
+    de: t.de,
+    para: t.para,
+    entraram: t.entraram,
+    avancaram: t.avancaram,
+    pct: t.entraram > 0 ? (t.avancaram / t.entraram) * 100 : null
+  }));
 }
 
 /* =========================================================
@@ -1163,17 +1169,17 @@ function renderizarFunil() {
 }
 
 function renderizarTempoEtapas() {
-  const medias = calcularTempoMedioPorEtapa();
+  const cadencia = calcularCadenciaPorEtapa();
   const container = document.getElementById("tempo-etapas");
   container.innerHTML = "";
+  container.style.gridTemplateColumns = "repeat(" + cadencia.length + ", 1fr)";
 
-  ORDEM_ETAPAS.forEach(etapa => {
-    const media = medias.get(etapa);
+  cadencia.forEach(t => {
     const div = document.createElement("div");
     div.className = "etapa-tempo-item";
     div.innerHTML = `
-      <div class="val">${media === null ? "—" : media.toFixed(1) + "d"}</div>
-      <div class="lbl">${ETAPA_LABEL[etapa] || etapa}</div>
+      <div class="val">${t.pct === null ? "—" : Math.round(t.pct) + "%"}</div>
+      <div class="lbl">${(ETAPA_LABEL[t.de] || t.de)} → ${(ETAPA_LABEL[t.para] || t.para)}</div>
     `;
     container.appendChild(div);
   });
@@ -1181,7 +1187,7 @@ function renderizarTempoEtapas() {
 
 function renderizarDescartados() {
   // Motivos de descarte — barras ordenadas da maior para a menor quantidade
-  const { labels, valores, total } = calcularMotivosDescarte();
+  const { labels, valores, total: descartadosNoPeriodo } = calcularMotivosDescarte();
   destruirChart("motivosDescarte");
   state.charts.motivosDescarte = new Chart(document.getElementById("chart-motivos-descarte"), {
     type: "bar",
@@ -1196,15 +1202,18 @@ function renderizarDescartados() {
     plugins: [pluginValoresNaBarra]
   });
 
-  // Ativos x Descartados — mesma base de dados (Cadastro/Log_Funil para Ativos, aba Descartados para Descartados)
-  const { contagem } = calcularFunil();
-  const ativos = contagem.get("Ativo") || 0;
-  destruirChart("ativosDescartados");
-  state.charts.ativosDescartados = new Chart(document.getElementById("chart-ativos-descartados"), {
+  // Cadastrados x Descartados — total de corretores cadastrados no período (aba Cadastro) x descartados no período (aba Descartados)
+  const cadastradosNoPeriodo = filtrarPorPeriodo(state.cadastro, "dataCadastro").length;
+  const pctDescarte = cadastradosNoPeriodo > 0 ? Math.round((descartadosNoPeriodo / cadastradosNoPeriodo) * 100) : 0;
+  document.getElementById("txt-pct-descarte").textContent =
+    "Taxa de descarte: " + pctDescarte + "% sobre o total de cadastrados no período.";
+
+  destruirChart("cadastradosDescartados");
+  state.charts.cadastradosDescartados = new Chart(document.getElementById("chart-cadastrados-descartados"), {
     type: "bar",
     data: {
-      labels: ["Ativos", "Descartados"],
-      datasets: [{ data: [ativos, total], backgroundColor: [PALETA[0], PALETA[1]], borderRadius: 6 }]
+      labels: ["Cadastrados", "Descartados"],
+      datasets: [{ data: [cadastradosNoPeriodo, descartadosNoPeriodo], backgroundColor: [PALETA[0], PALETA[1]], borderRadius: 6 }]
     },
     options: {
       indexAxis: "y",
@@ -1237,7 +1246,7 @@ document.querySelectorAll(".nav-link").forEach(link => {
     const viewId = link.dataset.view;
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     document.getElementById("view-" + viewId).classList.add("active");
-    document.getElementById("page-title").textContent = viewId === "dashboard" ? "Dashboard" : "Funil de Vendas";
+    document.getElementById("page-title").textContent = viewId === "dashboard" ? "Painel de Corretores" : "Funil de Vendas";
     fecharMenuMobile();
   });
 });
