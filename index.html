@@ -853,7 +853,9 @@ function calcularFunil() {
     if (logsDoCorretor.length > 0) {
       etapaAtual = logsDoCorretor[logsDoCorretor.length - 1].etapaNova;
     } else {
-      etapaAtual = "Prospectado";
+      // Sem histórico no Log_Funil (ex.: base retroativa importada de uma vez) — usa o
+      // Status_Atual informado no Cadastro em vez de presumir "Prospectado" por padrão.
+      etapaAtual = normalizarEtapa(corretor.statusAtual) || "Prospectado";
     }
     if (!contagem.has(etapaAtual)) contagem.set(etapaAtual, 0);
     contagem.set(etapaAtual, contagem.get(etapaAtual) + 1);
@@ -871,9 +873,15 @@ function calcularFunil() {
 function construirLinhaDoTempo(corretor, fimLimite) {
   const logs = state.logFunil.filter(l => l.id === corretor.id && l.data <= fimLimite);
   const linha = [];
-  const primeiraEtapa = logs.length > 0 && logs[0].etapaAnterior
-    ? logs[0].etapaAnterior
-    : "Prospectado";
+  let primeiraEtapa;
+  if (logs.length > 0) {
+    primeiraEtapa = logs[0].etapaAnterior || "Prospectado";
+  } else {
+    // Sem nenhum histórico no Log_Funil (ex.: base retroativa importada de uma vez) — usa o
+    // Status_Atual do Cadastro em vez de presumir "Prospectado" por padrão. Assim, um corretor
+    // já cadastrado como "Ativo" sem log não conta erroneamente como travado em "Prospectado".
+    primeiraEtapa = normalizarEtapa(corretor.statusAtual) || "Prospectado";
+  }
   linha.push({ data: corretor.dataCadastro, etapa: primeiraEtapa });
   logs.forEach(l => linha.push({ data: l.data, etapa: l.etapaNova }));
   return linha;
