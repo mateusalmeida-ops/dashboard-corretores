@@ -371,6 +371,24 @@
   }
   #loading-msg.visible { display: block; }
 
+  /* Tabela nominal (Controle de Propostas) */
+  .tabela-wrap { overflow-x: auto; }
+  .tabela-simples { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tabela-simples th {
+    text-align: left;
+    padding: 10px 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  .tabela-simples td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .tabela-simples tbody tr:last-child td { border-bottom: none; }
+  .tabela-vazio { padding: 20px; text-align: center; color: var(--text-muted); }
+
   /* ===== Responsivo ===== */
   @media (max-width: 768px) {
     .sidebar {
@@ -403,6 +421,7 @@
   <nav>
     <a href="#" class="nav-link active" data-view="dashboard"><span class="icon">◆</span> Painel de Corretores</a>
     <a href="#" class="nav-link" data-view="funil"><span class="icon">▽</span> Funil de Vendas</a>
+    <a href="#" class="nav-link" data-view="propostas"><span class="icon">◈</span> Controle de Propostas</a>
   </nav>
 </div>
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -489,6 +508,14 @@
         <div class="region-filters" id="region-filters"></div>
       </div>
     </div>
+
+    <div class="grid full">
+      <div class="card">
+        <h3>Funil comercial ao longo do tempo</h3>
+        <div class="card-desc">Cadastrados, Atendimentos, Propostas e Vendas semana a semana, para visualizar a conversão do funil comercial no período selecionado.</div>
+        <div class="chart-wrap tall"><canvas id="chart-funil-comercial"></canvas></div>
+      </div>
+    </div>
   </div>
 
   <!-- ================= FUNIL VIEW ================= -->
@@ -530,6 +557,38 @@
       </div>
     </div>
   </div>
+
+  <!-- ================= CONTROLE DE PROPOSTAS VIEW ================= -->
+  <div class="view" id="view-propostas">
+    <div class="grid">
+      <div class="card">
+        <h3>Atendimentos</h3>
+        <div class="card-desc">Comparativo entre atendimentos presenciais e remotos no período selecionado.</div>
+        <div class="chart-wrap tall"><canvas id="chart-atendimentos"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Proposta x Venda</h3>
+        <div class="card-desc">Quantidade de propostas x vendas no período selecionado.</div>
+        <div class="chart-wrap tall"><canvas id="chart-proposta-venda"></canvas></div>
+        <div class="card-desc" id="txt-pct-conversao-venda" style="margin-top:10px; margin-bottom:0;"></div>
+      </div>
+    </div>
+
+    <div class="grid full">
+      <div class="card">
+        <h3>Atendimentos do período</h3>
+        <div class="card-desc">Lista individual dos atendimentos registrados no período selecionado.</div>
+        <div class="tabela-wrap">
+          <table class="tabela-simples">
+            <thead>
+              <tr><th>Nome</th><th>Data</th><th>Modalidade</th><th>Observação</th></tr>
+            </thead>
+            <tbody id="tabela-atendimentos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -542,7 +601,9 @@ const CONFIG = {
   // Aba "Log_Funil" publicada como CSV (gid=1874964851)
   URL_LOG_FUNIL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1874964851&single=true&output=csv",
   // Aba "Descartados" publicada como CSV (gid=1454946292)
-  URL_DESCARTADOS: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1454946292&single=true&output=csv"
+  URL_DESCARTADOS: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1454946292&single=true&output=csv",
+  // Aba "Atividades" publicada como CSV (gid=1513319644)
+  URL_ATIVIDADES: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqNxHGh0Ceshz9JSEuuRvkfkpJKCyfaNUVM-Y8Ndt5NxUipRLvKxz26dW9oZ6IC0J2XP5_xcFPlOpJ/pub?gid=1513319644&single=true&output=csv"
 };
 
 /* =========================================================
@@ -605,6 +666,7 @@ const state = {
   cadastro: [],
   logFunil: [],
   descartados: [],
+  atividades: [],
   periodType: "mes",
   customStart: null,
   customEnd: null,
@@ -639,6 +701,14 @@ function normalizarUF(valor) {
 // Coluna Status_CV é preenchida com o texto "CADASTRADO" ou "SEM CADASTRO"
 function ehSemCadastro(corretor) {
   return corretor.statusCVTexto === "sem cadastro";
+}
+
+// Normaliza o texto de Modalidade (Presencial/Remoto) vindo da aba Atividades
+function normalizarModalidade(valor) {
+  const v = (valor || "").trim().toLowerCase();
+  if (v === "presencial") return "Presencial";
+  if (v === "remoto") return "Remoto";
+  return (valor || "").trim();
 }
 
 function inicioDoDia(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
@@ -685,6 +755,7 @@ async function carregarDados() {
     const cadastroRaw = await buscarCSV(CONFIG.URL_CADASTRO);
     const logRaw = await buscarCSV(CONFIG.URL_LOG_FUNIL);
     const descartadosRaw = await buscarCSV(CONFIG.URL_DESCARTADOS);
+    const atividadesRaw = await buscarCSV(CONFIG.URL_ATIVIDADES);
 
     state.cadastro = cadastroRaw
       .filter(r => r.ID_Corretor)
@@ -720,6 +791,19 @@ async function carregarDados() {
         motivo: (r.Motivo || "").trim() || "Não informado"
       }))
       .filter(r => r.dataDescarte);
+
+    state.atividades = atividadesRaw
+      .filter(r => r.Data && r.Tipo_Atividade)
+      .map(r => ({
+        data: parseDataBR(r.Data),
+        tipo: (r.Tipo_Atividade || "").trim(),
+        id: r.ID_Corretor ? String(r.ID_Corretor).trim() : "",
+        nome: (r.Nome || "").trim(),
+        modalidade: normalizarModalidade(r.Modalidade),
+        status: (r.Status || "").trim().toUpperCase(),
+        observacao: (r.Observacao || "").trim()
+      }))
+      .filter(r => r.data);
 
     mostrarCarregando(false);
     renderizarTudo();
@@ -954,6 +1038,67 @@ function calcularMotivosDescarte() {
 }
 
 /* =========================================================
+   CONTROLE DE PROPOSTAS (aba "Atividades")
+   ========================================================= */
+function filtrarAtividadesPorPeriodo() {
+  const { inicio, fim } = obterPeriodoAtual();
+  return state.atividades.filter(a => a.data >= inicio && a.data <= fim);
+}
+
+function calcularAtendimentos() {
+  const atendimentos = filtrarAtividadesPorPeriodo().filter(a => a.tipo === "Atendimento");
+  const presencial = atendimentos.filter(a => a.modalidade === "Presencial").length;
+  const remoto = atendimentos.filter(a => a.modalidade === "Remoto").length;
+  return { atendimentos, presencial, remoto };
+}
+
+// "Venda" é um Tipo_Atividade próprio na planilha (não uma Proposta com Status="Vendida" — Proposta
+// tem Status APROVADA/RECUSADA; quando aprovada, gera uma linha separada de Venda).
+function calcularPropostaVenda() {
+  const atividadesPeriodo = filtrarAtividadesPorPeriodo();
+  const propostas = atividadesPeriodo.filter(a => a.tipo === "Proposta").length;
+  const vendas = atividadesPeriodo.filter(a => a.tipo === "Venda").length;
+  const pctConversao = propostas > 0 ? Math.round((vendas / propostas) * 100) : 0;
+  return { propostas, vendas, pctConversao };
+}
+
+// Série semanal para o gráfico de conversão do funil comercial (Painel de Corretores)
+function calcularFunilComercialSemanal() {
+  const cadastrosPeriodo = filtrarPorPeriodo(state.cadastro, "dataCadastro");
+  const atividadesPeriodo = filtrarAtividadesPorPeriodo();
+  const semanas = new Map();
+
+  function semanaDe(data) {
+    const ts = inicioDaSemana(data).getTime();
+    if (!semanas.has(ts)) semanas.set(ts, { cadastrados: 0, atendimentos: 0, propostas: 0, vendas: 0 });
+    return semanas.get(ts);
+  }
+
+  cadastrosPeriodo.forEach(r => { semanaDe(r.dataCadastro).cadastrados++; });
+  atividadesPeriodo.forEach(a => {
+    const semana = semanaDe(a.data);
+    if (a.tipo === "Atendimento") semana.atendimentos++;
+    else if (a.tipo === "Proposta") semana.propostas++;
+    else if (a.tipo === "Venda") semana.vendas++;
+  });
+
+  const semanasOrdenadas = [...semanas.keys()].sort((a, b) => a - b);
+  return {
+    labels: semanasOrdenadas.map(t => "Sem. " + formatarDataCurta(new Date(t))),
+    cadastrados: semanasOrdenadas.map(t => semanas.get(t).cadastrados),
+    atendimentos: semanasOrdenadas.map(t => semanas.get(t).atendimentos),
+    propostas: semanasOrdenadas.map(t => semanas.get(t).propostas),
+    vendas: semanasOrdenadas.map(t => semanas.get(t).vendas)
+  };
+}
+
+function escapeHTML(str) {
+  const div = document.createElement("div");
+  div.textContent = str || "";
+  return div.innerHTML;
+}
+
+/* =========================================================
    RENDERIZAÇÃO — Dashboard
    ========================================================= */
 // Paleta oficial Cavalcante & Rolim (Dunas, Caramelo, Dourado, Palms) + tons derivados para dar variedade aos gráficos
@@ -1095,6 +1240,31 @@ function renderizarDashboard() {
   });
 
   renderizarRegiao(m.cadastroFiltrado);
+  renderizarFunilComercial();
+}
+
+// Cadastrados, Atendimentos, Propostas e Vendas semana a semana, para visualizar a conversão do funil comercial
+function renderizarFunilComercial() {
+  const dados = calcularFunilComercialSemanal();
+  destruirChart("funilComercial");
+  state.charts.funilComercial = new Chart(document.getElementById("chart-funil-comercial"), {
+    type: "line",
+    data: {
+      labels: dados.labels,
+      datasets: [
+        { label: "Cadastrados", data: dados.cadastrados, borderColor: "#1D332B", backgroundColor: "#1D332B", tension: 0.3 },
+        { label: "Atendimentos", data: dados.atendimentos, borderColor: "#AA805B", backgroundColor: "#AA805B", tension: 0.3 },
+        { label: "Propostas", data: dados.propostas, borderColor: "#c9a15a", backgroundColor: "#c9a15a", tension: 0.3 },
+        { label: "Vendas", data: dados.vendas, borderColor: "#4c7a5e", backgroundColor: "#4c7a5e", tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: "bottom", labels: { boxWidth: 12, padding: 16 } } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
 }
 
 function renderizarRegiao(cadastroFiltrado) {
@@ -1236,11 +1406,83 @@ function renderizarDescartados() {
 }
 
 /* =========================================================
+   RENDERIZAÇÃO — Controle de Propostas
+   ========================================================= */
+function renderizarPropostas() {
+  // Atendimentos — Presencial x Remoto
+  const { atendimentos, presencial, remoto } = calcularAtendimentos();
+  destruirChart("atendimentos");
+  state.charts.atendimentos = new Chart(document.getElementById("chart-atendimentos"), {
+    type: "bar",
+    data: {
+      labels: ["Presencial", "Remoto"],
+      datasets: [{ data: [presencial, remoto], backgroundColor: [PALETA[1], PALETA[0]], borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 34 } },
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+    },
+    plugins: [pluginValoresNaBarra]
+  });
+
+  // Proposta x Venda
+  const { propostas, vendas, pctConversao } = calcularPropostaVenda();
+  document.getElementById("txt-pct-conversao-venda").textContent =
+    "Conversão: " + pctConversao + "% das propostas viraram venda no período.";
+  destruirChart("propostaVenda");
+  state.charts.propostaVenda = new Chart(document.getElementById("chart-proposta-venda"), {
+    type: "bar",
+    data: {
+      labels: ["Propostas", "Vendas"],
+      datasets: [{ data: [propostas, vendas], backgroundColor: [PALETA[0], "#4c7a5e"], borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 34 } },
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+    },
+    plugins: [pluginValoresNaBarra]
+  });
+
+  renderizarTabelaAtendimentos(atendimentos);
+}
+
+function renderizarTabelaAtendimentos(atendimentos) {
+  const tbody = document.getElementById("tabela-atendimentos");
+  tbody.innerHTML = "";
+
+  if (atendimentos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="tabela-vazio">Nenhum atendimento no período selecionado.</td></tr>';
+    return;
+  }
+
+  const ordenados = [...atendimentos].sort((a, b) => b.data - a.data);
+  ordenados.forEach(a => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHTML(a.nome) || "—"}</td>
+      <td>${formatarDataCurta(a.data)}</td>
+      <td>${escapeHTML(a.modalidade) || "—"}</td>
+      <td>${escapeHTML(a.observacao) || "—"}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* =========================================================
    RENDER GERAL
    ========================================================= */
 function renderizarTudo() {
   renderizarDashboard();
   renderizarFunil();
+  renderizarPropostas();
 }
 
 /* =========================================================
@@ -1254,7 +1496,8 @@ document.querySelectorAll(".nav-link").forEach(link => {
     const viewId = link.dataset.view;
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     document.getElementById("view-" + viewId).classList.add("active");
-    document.getElementById("page-title").textContent = viewId === "dashboard" ? "Painel de Corretores" : "Funil de Vendas";
+    const titulos = { dashboard: "Painel de Corretores", funil: "Funil de Vendas", propostas: "Controle de Propostas" };
+    document.getElementById("page-title").textContent = titulos[viewId] || "";
     fecharMenuMobile();
   });
 });
